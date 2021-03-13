@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.os.Bundle;
+import android.os.Build;
 import android.os.IBinder;
 import android.support.v4.media.RatingCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
@@ -21,6 +22,9 @@ import com.guichaguri.trackplayer.service.player.ExoPlayback;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
+
+import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.Arguments;
 
 /**
  * @author Guichaguri
@@ -103,7 +107,11 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
 
         // Binds the service to get a MediaWrapper instance
         Intent intent = new Intent(context, MusicService.class);
-        context.startService(intent);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent);
+        } else {
+            context.startService(intent);
+        }
         intent.setAction(Utils.CONNECT_INTENT);
         context.bindService(intent, this, 0);
 
@@ -456,6 +464,48 @@ public class MusicModule extends ReactContextBaseJavaModule implements ServiceCo
 
     @ReactMethod
     public void getState(final Promise callback) {
-        waitForConnection(() -> callback.resolve(binder.getPlayback().getState()));
+        if (binder == null) {
+            callback.resolve(PlaybackStateCompat.STATE_NONE);
+        } else {
+            waitForConnection(() -> callback.resolve(binder.getPlayback().getState()));
+        }
+    }
+
+    @ReactMethod
+    public void getPlayerState(final Promise callback) {
+        WritableMap resultMap = Arguments.createMap();
+
+        waitForConnection(() -> {
+            long position = binder.getPlayback().getPosition();
+            long bufferedPosition = binder.getPlayback().getBufferedPosition();
+            long duration = binder.getPlayback().getDuration();
+
+
+            if(position == C.POSITION_UNSET) {
+                resultMap.putString("position", "Unknown position");
+            } else {
+                resultMap.putDouble("position", Utils.toSeconds(position));
+            }
+
+            if(bufferedPosition == C.POSITION_UNSET) {
+                resultMap.putDouble("bufferedPosition", Utils.toSeconds(0));
+            } else {
+                resultMap.putDouble("bufferedPosition", Utils.toSeconds(bufferedPosition));
+            }
+
+            if(duration == C.TIME_UNSET) {
+                resultMap.putDouble("duration", Utils.toSeconds(0));
+            } else {
+                resultMap.putDouble("duration", Utils.toSeconds(duration));
+            }
+
+            if (binder == null) {
+                resultMap.putInt("state", PlaybackStateCompat.STATE_NONE);
+            } else {
+                resultMap.putInt("state", binder.getPlayback().getState());
+            }
+
+            callback.resolve(resultMap);
+        });
     }
 }

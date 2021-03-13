@@ -111,12 +111,18 @@ public class MusicService extends HeadlessJsTaskService {
         super.onStartCommand(intent, flags, startId);
         return START_NOT_STICKY;
     }
-
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        String channel = Utils.getNotificationChannel((Context) this);
+        startForeground(1, new NotificationCompat.Builder(this, channel).build());
+    }
     @Override
     public void onDestroy() {
         super.onDestroy();
 
         destroy();
+        stopForeground(true);
     }
 
     @Override
@@ -124,6 +130,10 @@ public class MusicService extends HeadlessJsTaskService {
         super.onTaskRemoved(rootIntent);
 
         if (manager == null || manager.shouldStopWithApp()) {
+            if (manager != null) {
+                manager.getPlayback().stop();
+            }
+            destroy();
             stopSelf();
         }
     }
